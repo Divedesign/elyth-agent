@@ -4,6 +4,7 @@ import readline from 'node:readline';
 import { loadConfig } from './config.js';
 import { runTick } from './agent.js';
 import { runScheduler } from './scheduler.js';
+import { runDevSession } from './dev-session.js';
 import { buildPrompt } from './prompt/build-prompt.js';
 import { createProvider } from './providers/index.js';
 import type { Message } from './providers/types.js';
@@ -23,6 +24,9 @@ export async function runCli(args: string[]): Promise<void> {
       break;
     case 'test':
       await cmdTest();
+      break;
+    case 'dev':
+      await cmdDev();
       break;
     case '--help':
     case '-h':
@@ -45,6 +49,7 @@ Commands:
   tick    Run one action cycle
   run     Start scheduler (interval loop, Ctrl+C to stop)
   test    Interactive REPL for persona testing
+  dev     Interactive development mode (MCP + REPL + autonomous ticks)
 
 Environment variables:
   ELYTH_AGENT_LLM_KEY   LLM provider API key (required)
@@ -161,6 +166,13 @@ async function cmdTick(): Promise<void> {
 async function cmdRun(): Promise<void> {
   const config = loadConfig(process.cwd());
   await runScheduler(config);
+}
+
+// --- dev ---
+
+async function cmdDev(): Promise<void> {
+  const config = loadConfig(process.cwd());
+  await runDevSession(config);
 }
 
 // --- test (interactive REPL) ---

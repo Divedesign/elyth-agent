@@ -8,12 +8,91 @@ import type {
   ContentBlock,
   ToolUseBlock,
   ToolResultBlock,
+  ToolDefinition,
+  LLMProvider,
 } from './providers/types.js';
+
+/**
+ * Execute the LLM tool-use loop. Mutates the messages array in place.
+ * Returns the number of turns consumed.
+ */
+export async function executeToolLoop(
+  provider: LLMProvider,
+  systemPrompt: string,
+  messages: Message[],
+  tools: ToolDefinition[],
+  mcp: McpClient,
+  logger: Logger,
+  maxTurns: number,
+): Promise<number> {
+  let turns = 0;
+
+  while (turns < maxTurns) {
+    const res = await provider.chat(systemPrompt, messages, tools);
+    turns++;
+    logger.logResponse(res);
+
+    if (res.stopReason !== 'tool_use' || res.toolCalls.length === 0) {
+      if (res.content) {
+        messages.push({ role: 'assistant', content: res.content });
+      }
+      break;
+    }
+
+    // Build assistant message with text + tool_use blocks
+    const assistantBlocks: ContentBlock[] = [];
+    if (res.content) {
+      assistantBlocks.push({ type: 'text', text: res.content });
+    }
+    for (const call of res.toolCalls) {
+      assistantBlocks.push({
+        type: 'tool_use',
+        id: call.id,
+        name: call.name,
+        input: call.input,
+        metadata: call.metadata,
+      } as ToolUseBlock);
+    }
+    messages.push({ role: 'assistant', content: assistantBlocks });
+
+    // Execute tool calls and build result blocks
+    const resultBlocks: ToolResultBlock[] = [];
+    for (const call of res.toolCalls) {
+      logger.logToolCall(call);
+      try {
+        const result = await mcp.callTool(call.name, call.input);
+        logger.logToolResult(call, result);
+        resultBlocks.push({
+          type: 'tool_result',
+          tool_use_id: call.id,
+          content: result.content,
+          is_error: result.isError,
+        });
+      } catch (err) {
+        const errorMsg =
+          err instanceof Error ? err.message : String(err);
+        logger.logToolResult(call, {
+          content: errorMsg,
+          isError: true,
+        });
+        resultBlocks.push({
+          type: 'tool_result',
+          tool_use_id: call.id,
+          content: errorMsg,
+          is_error: true,
+        });
+      }
+    }
+
+    messages.push({ role: 'user', content: resultBlocks });
+  }
+
+  return turns;
+}
 
 export async function runTick(config: AgentConfig): Promise<void> {
   const logger = new Logger(config.logDir);
   const startTime = Date.now();
-  let turns = 0;
 
   try {
     logger.logTickStart(config.provider, config.model);
@@ -52,67 +131,14 @@ export async function runTick(config: AgentConfig): Promise<void> {
         },
       ];
 
-      while (turns < config.maxTurns) {
-        const res = await provider.chat(systemPrompt, messages, tools);
-        turns++;
-        logger.logResponse(res);
+      const turns = await executeToolLoop(
+        provider, systemPrompt, messages, tools, mcp, logger, config.maxTurns,
+      );
 
-        if (res.stopReason !== 'tool_use' || res.toolCalls.length === 0) {
-          break;
-        }
-
-        // Build assistant message with text + tool_use blocks
-        const assistantBlocks: ContentBlock[] = [];
-        if (res.content) {
-          assistantBlocks.push({ type: 'text', text: res.content });
-        }
-        for (const call of res.toolCalls) {
-          assistantBlocks.push({
-            type: 'tool_use',
-            id: call.id,
-            name: call.name,
-            input: call.input,
-            metadata: call.metadata,
-          } as ToolUseBlock);
-        }
-        messages.push({ role: 'assistant', content: assistantBlocks });
-
-        // Execute tool calls and build result blocks
-        const resultBlocks: ToolResultBlock[] = [];
-        for (const call of res.toolCalls) {
-          logger.logToolCall(call);
-          try {
-            const result = await mcp.callTool(call.name, call.input);
-            logger.logToolResult(call, result);
-            resultBlocks.push({
-              type: 'tool_result',
-              tool_use_id: call.id,
-              content: result.content,
-              is_error: result.isError,
-            });
-          } catch (err) {
-            const errorMsg =
-              err instanceof Error ? err.message : String(err);
-            logger.logToolResult(call, {
-              content: errorMsg,
-              isError: true,
-            });
-            resultBlocks.push({
-              type: 'tool_result',
-              tool_use_id: call.id,
-              content: errorMsg,
-              is_error: true,
-            });
-          }
-        }
-
-        messages.push({ role: 'user', content: resultBlocks });
-      }
+      logger.logTickEnd(turns, Date.now() - startTime);
     } finally {
       await mcp.disconnect();
     }
-
-    logger.logTickEnd(turns, Date.now() - startTime);
   } catch (err) {
     logger.logError(err);
     throw err;
