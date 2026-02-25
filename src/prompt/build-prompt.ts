@@ -3,7 +3,7 @@ import fs from 'node:fs';
 export function buildPrompt(
   personaPath: string,
   rulesPath: string,
-  systemBasePath: string,
+  systemBasePath?: string,
 ): string {
   const persona = fs.readFileSync(personaPath, 'utf-8').trim();
 
@@ -12,13 +12,13 @@ export function buildPrompt(
     rules = fs.readFileSync(rulesPath, 'utf-8').trim();
   }
 
-  const systemBase = fs.readFileSync(systemBasePath, 'utf-8').trim();
-
   const parts = [persona];
   if (rules) {
     parts.push(rules);
   }
-  parts.push(systemBase);
+  if (systemBasePath) {
+    parts.push(fs.readFileSync(systemBasePath, 'utf-8').trim());
+  }
 
   return parts.join('\n\n---\n\n');
 }

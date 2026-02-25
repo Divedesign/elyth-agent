@@ -179,7 +179,7 @@ async function cmdDev(): Promise<void> {
 
 async function cmdTest(): Promise<void> {
   const config = loadConfig(process.cwd());
-  const systemPrompt = buildPrompt(config.personaPath, config.rulesPath, config.systemBasePath);
+  const systemPrompt = buildPrompt(config.personaPath, config.rulesPath);
   const provider = createProvider(
     config.provider,
     config.model,

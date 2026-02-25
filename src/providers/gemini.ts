@@ -1,9 +1,4 @@
-import {
-  GoogleGenerativeAI,
-  type Content,
-  type FunctionDeclarationSchema,
-  type Part,
-} from '@google/generative-ai';
+import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import type {
   LLMProvider,
   LLMResponse,
@@ -14,11 +9,11 @@ import type {
 } from './types.js';
 
 export class GeminiProvider implements LLMProvider {
-  private genAI: GoogleGenerativeAI;
+  private ai: GoogleGenAI;
   private model: string;
 
   constructor(apiKey: string, model: string) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.ai = new GoogleGenAI({ apiKey });
     this.model = model;
   }
 
@@ -34,60 +29,41 @@ export class GeminiProvider implements LLMProvider {
               functionDeclarations: tools.map((t) => ({
                 name: t.name,
                 description: t.description,
-                parameters: this.convertSchema(t.inputSchema),
+                parametersJsonSchema: this.stripUnsupportedFields(t.inputSchema),
               })),
             },
           ]
         : undefined;
 
-    const model = this.genAI.getGenerativeModel({
-      model: this.model,
-      systemInstruction: systemPrompt,
-      tools: geminiTools,
-    });
-
     const toolNameMap = this.buildToolNameMap(messages);
-    const lastMessage = messages[messages.length - 1];
-    const lastHasFunctionResponse =
-      Array.isArray(lastMessage.content) &&
-      lastMessage.content.some((b) => (b as ContentBlock).type === 'tool_result');
+    const contents = this.convertMessages(messages, toolNameMap);
 
-    let result;
-    if (lastHasFunctionResponse) {
-      // sendMessage assumes role 'user', but functionResponse needs role 'function'.
-      // Include all messages in history and use sendMessage with empty-ish prompt
-      // to trigger the model to continue.
-      const geminiHistory = this.convertMessages(messages);
-      const chat = model.startChat({ history: geminiHistory });
-      result = await chat.sendMessage('Continue based on the tool results above.');
-    } else {
-      const geminiHistory = this.convertMessages(messages.slice(0, -1));
-      const chat = model.startChat({ history: geminiHistory });
-      const lastParts = this.messageToParts(lastMessage, toolNameMap);
-      result = await chat.sendMessage(lastParts);
-    }
-
-    const response = result.response;
-    const candidate = response.candidates?.[0];
+    const response = await this.ai.models.generateContent({
+      model: this.model,
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        tools: geminiTools,
+      },
+    });
 
     const textParts: string[] = [];
     const toolCalls: ToolCall[] = [];
 
-    if (candidate?.content?.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.text) {
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        // Skip thinking parts — only extract actual text
+        if (part.text && !part.thought) {
           textParts.push(part.text);
         }
         if (part.functionCall) {
-          const rawPart = part as unknown as Record<string, unknown>;
           const metadata: Record<string, unknown> = {};
-          // Preserve thought_signature for Gemini conversation history
-          if (rawPart.thoughtSignature) {
-            metadata.thoughtSignature = rawPart.thoughtSignature;
+          if (part.thoughtSignature) {
+            metadata.thoughtSignature = part.thoughtSignature;
           }
           toolCalls.push({
             id: `gemini_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            name: part.functionCall.name,
+            name: part.functionCall.name!,
             input: (part.functionCall.args as Record<string, unknown>) || {},
             metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
           });
@@ -95,7 +71,7 @@ export class GeminiProvider implements LLMProvider {
       }
     }
 
-    const finishReason = candidate?.finishReason;
+    const finishReason = response.candidates?.[0]?.finishReason;
     let stopReason: LLMResponse['stopReason'];
     if (toolCalls.length > 0) {
       stopReason = 'tool_use';
@@ -110,12 +86,6 @@ export class GeminiProvider implements LLMProvider {
       toolCalls,
       stopReason,
     };
-  }
-
-  private convertSchema(
-    schema: Record<string, unknown>,
-  ): FunctionDeclarationSchema {
-    return this.stripUnsupportedFields(schema) as FunctionDeclarationSchema;
   }
 
   /** Recursively remove JSON Schema fields that Gemini API doesn't accept */
@@ -138,25 +108,71 @@ export class GeminiProvider implements LLMProvider {
     return obj;
   }
 
-  private convertMessages(messages: Message[]): Content[] {
-    // Build a mapping of tool_use_id → function name from all messages
-    const toolNameMap = this.buildToolNameMap(messages);
+  private convertMessages(
+    messages: Message[],
+    toolNameMap: Map<string, string>,
+  ): Content[] {
+    const contents: Content[] = [];
 
-    return messages.map((m) => {
-      let role: string;
-      if (m.role === 'assistant') {
-        role = 'model';
-      } else if (
-        Array.isArray(m.content) &&
-        m.content.some((b) => (b as ContentBlock).type === 'tool_result')
-      ) {
-        // Gemini requires functionResponse parts to have role 'function'
-        role = 'function';
-      } else {
-        role = 'user';
+    for (const msg of messages) {
+      if (typeof msg.content === 'string') {
+        contents.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }],
+        });
+        continue;
       }
-      return { role, parts: this.messageToParts(m, toolNameMap) };
-    });
+
+      const blocks = msg.content as ContentBlock[];
+
+      // tool_result blocks must be sent as role 'user' with functionResponse parts
+      const toolResults = blocks.filter((b) => b.type === 'tool_result');
+      const otherBlocks = blocks.filter((b) => b.type !== 'tool_result');
+
+      if (otherBlocks.length > 0) {
+        const role = msg.role === 'assistant' ? 'model' : 'user';
+        const parts: Part[] = [];
+        for (const block of otherBlocks) {
+          switch (block.type) {
+            case 'text':
+              parts.push({ text: block.text });
+              break;
+            case 'tool_use': {
+              const fcPart: Part = {
+                functionCall: {
+                  name: block.name,
+                  args: block.input,
+                },
+              };
+              if (block.metadata?.thoughtSignature) {
+                (fcPart as Record<string, unknown>).thoughtSignature =
+                  block.metadata.thoughtSignature;
+              }
+              parts.push(fcPart);
+              break;
+            }
+          }
+        }
+        if (parts.length > 0) {
+          contents.push({ role, parts });
+        }
+      }
+
+      if (toolResults.length > 0) {
+        const frParts: Part[] = toolResults.map((block) => {
+          if (block.type !== 'tool_result') throw new Error('unreachable');
+          return {
+            functionResponse: {
+              name: toolNameMap.get(block.tool_use_id) ?? 'unknown',
+              response: { result: block.content },
+            },
+          };
+        });
+        contents.push({ role: 'user', parts: frParts });
+      }
+    }
+
+    return contents;
   }
 
   /** Scan all messages to build a tool_use_id → name mapping */
@@ -171,49 +187,5 @@ export class GeminiProvider implements LLMProvider {
       }
     }
     return map;
-  }
-
-  private messageToParts(
-    msg: Message,
-    toolNameMap: Map<string, string> = new Map(),
-  ): Part[] {
-    if (typeof msg.content === 'string') {
-      return [{ text: msg.content }];
-    }
-
-    const blocks = msg.content as ContentBlock[];
-    const parts: Part[] = [];
-
-    for (const block of blocks) {
-      switch (block.type) {
-        case 'text':
-          parts.push({ text: block.text });
-          break;
-        case 'tool_use': {
-          const fcPart: Record<string, unknown> = {
-            functionCall: {
-              name: block.name,
-              args: block.input,
-            },
-          };
-          // Restore thought_signature if preserved
-          if (block.metadata?.thoughtSignature) {
-            fcPart.thoughtSignature = block.metadata.thoughtSignature;
-          }
-          parts.push(fcPart as unknown as Part);
-          break;
-        }
-        case 'tool_result':
-          parts.push({
-            functionResponse: {
-              name: toolNameMap.get(block.tool_use_id) ?? 'unknown',
-              response: { result: block.content },
-            },
-          });
-          break;
-      }
-    }
-
-    return parts.length > 0 ? parts : [{ text: '' }];
   }
 }
