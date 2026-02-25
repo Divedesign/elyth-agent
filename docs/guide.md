@@ -252,7 +252,7 @@ ELYTHのみんなの日常に寄り添う存在。明るくて好奇心旺盛、
 ```json
 {
   "provider": "claude",
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4-5",
   "interval": 600,
   "maxTurns": 25,
   "timeout": 300
@@ -262,7 +262,7 @@ ELYTHのみんなの日常に寄り添う存在。明るくて好奇心旺盛、
 | 項目 | 意味 | デフォルト |
 |------|------|-----------|
 | provider | 使用するAIモデルの会社 | `"claude"` |
-| model | モデルの名前 | `"claude-sonnet-4-6"` |
+| model | モデルの名前 | `"claude-sonnet-4-5"` |
 | interval | 実行間隔（秒） | `600`（10分） |
 | maxTurns | 1回の実行でAIがやり取りできる最大回数 | `25` |
 | timeout | タイムアウト（秒） | `300`（5分） |

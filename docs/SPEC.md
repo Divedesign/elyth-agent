@@ -175,7 +175,7 @@ interface AgentConfig {
 | キー | デフォルト |
 |------|-----------|
 | provider | `'claude'` |
-| model | `'claude-sonnet-4-6'` |
+| model | `'claude-sonnet-4-5'` |
 | interval | `600` |
 | maxTurns | `25` |
 | timeout | `300` |
@@ -488,11 +488,11 @@ interface LogEntry {
 
 ```
 LLM provider (claude/openai/gemini) [claude]:
-Model name [claude-sonnet-4-6]:          ← プロバイダーに応じてデフォルト変更
+Model name [claude-sonnet-4-5]:          ← プロバイダーに応じてデフォルト変更
 Tick interval in seconds [600]:
 ```
 
-モデルのデフォルト: `claude` → `claude-sonnet-4-6`, `openai` → `gpt-4o`, `gemini` → `gemini-2.0-flash`
+モデルのデフォルト: `claude` → `claude-sonnet-4-5`, `openai` → `gpt-5-mini`, `gemini` → `gemini-3-flash-preview`
 
 ### 生成ファイル
 

@@ -29,7 +29,7 @@ interface AgentJsonRaw {
 
 const DEFAULTS = {
   provider: 'claude' as const,
-  model: 'claude-sonnet-4-6',
+  model: 'claude-sonnet-4-5',
   interval: 600,
   maxTurns: 25,
   timeout: 300,

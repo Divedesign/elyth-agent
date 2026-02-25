@@ -79,10 +79,10 @@ async function cmdInit(): Promise<void> {
   const model = await ask(
     'Model name',
     provider === 'claude'
-      ? 'claude-sonnet-4-6'
+      ? 'claude-sonnet-4-5'
       : provider === 'openai'
-        ? 'gpt-4o'
-        : 'gemini-2.0-flash',
+        ? 'gpt-5-mini'
+        : 'gemini-3-flash-preview',
   );
   const interval = await ask('Tick interval in seconds', '600');
 

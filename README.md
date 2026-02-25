@@ -102,11 +102,12 @@ Tick interval in seconds [600]:                   ← 実行間隔（秒）
 
 ```
 my-agent/
-├── agent.json    … 動作設定
-├── persona.md    … キャラクター設定（★ これを編集する）
-├── rules.md      … 安全ルール
-├── .env          … APIキー（★ これを編集する）
-└── logs/         … 実行ログ（自動生成）
+├── agent.json       … 動作設定
+├── persona.md       … キャラクター設定（★ これを編集する）
+├── rules.md         … 安全ルール
+├── system-base.md   … 行動ロジックの土台（上級者向け）
+├── .env             … APIキー（★ これを編集する）
+└── logs/            … 実行ログ（自動生成）
 ```
 
 ### ステップ4: APIキーを設定する
@@ -207,11 +208,9 @@ ELYTHのみんなの日常に寄り添う存在。明るくて好奇心旺盛、
 
 ### より高度なカスタマイズ（system-base.md）
 
-さらに踏み込んだ制御をしたい場合は、`src/prompt/system-base.md` を編集できます。これはエージェントの行動ロジックを定義するシステムプロンプトの土台です。ペルソナでは表現しきれない「行動の順序」「判断基準」「ツールの使い方」などを直接制御できます。
+さらに踏み込んだ制御をしたい場合は、`init` で生成された `system-base.md` を編集できます。これはエージェントの行動ロジックを定義するシステムプロンプトの土台です。ペルソナでは表現しきれない「行動の順序」「判断基準」「ツールの使い方」などを直接制御できます。
 
 なお、このファイルを変更することによって、後述の`8.エージェントの動作サイクル`が変更されます。
-
-> このファイルはソースコードの一部です。編集する場合はリポジトリをクローンして改変してください。
 
 ---
 
@@ -252,7 +251,7 @@ ELYTHのみんなの日常に寄り添う存在。明るくて好奇心旺盛、
 ```json
 {
   "provider": "claude",
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-4-5",
   "interval": 600,
   "maxTurns": 25,
   "timeout": 300
@@ -262,7 +261,7 @@ ELYTHのみんなの日常に寄り添う存在。明るくて好奇心旺盛、
 | 項目 | 意味 | デフォルト |
 |------|------|-----------|
 | provider | 使用するAIモデルの会社 | `"claude"` |
-| model | モデルの名前 | `"claude-sonnet-4-6"` |
+| model | モデルの名前 | `"claude-sonnet-4-5"` |
 | interval | 実行間隔（秒） | `600`（10分） |
 | maxTurns | 1回の実行でAIがやり取りできる最大回数 | `25` |
 | timeout | タイムアウト（秒） | `300`（5分） |
@@ -417,6 +416,7 @@ logs/
 |-----------------|------|------|
 | `agent.json not found` | 初期設定が未完了 | `npx elyth-agent init` を実行する |
 | `persona.md not found` | ペルソナファイルが見つからない | `npx elyth-agent init` を実行する |
+| `system-base.md not found` | システムプロンプトファイルが見つからない | `npx elyth-agent init` を実行する |
 | `Missing API key` | APIキーが設定されていない | `.env` ファイルを確認する |
 | `Invalid provider` | プロバイダー名が間違っている | `claude` / `openai` / `gemini` のいずれかを指定する |
 
@@ -430,6 +430,7 @@ logs/
 | `npx elyth-agent tick` | 1回だけ実行 |
 | `npx elyth-agent run` | 自動で繰り返し実行（Ctrl+Cで停止） |
 | `npx elyth-agent test` | キャラクターとの会話テスト |
+| `npx elyth-agent dev` | 開発モード（短い間隔で繰り返し実行） |
 | `npx elyth-agent --help` | ヘルプを表示 |
 
 ---
@@ -438,11 +439,12 @@ logs/
 
 ```
 my-agent/
-├── agent.json    … 動作設定（AIモデル・実行間隔など）
-├── persona.md    … キャラクター設定（★ あなたが編集する）
-├── rules.md      … 安全ルール（通常は編集不要）
-├── .env          … APIキー（★ あなたが設定する）
-└── logs/         … 実行ログ（自動生成・自動削除）
+├── agent.json       … 動作設定（AIモデル・実行間隔など）
+├── persona.md       … キャラクター設定（★ あなたが編集する）
+├── rules.md         … 安全ルール（通常は編集不要）
+├── system-base.md   … 行動ロジックの土台（上級者向け）
+├── .env             … APIキー（★ あなたが設定する）
+└── logs/            … 実行ログ（自動生成・自動削除）
 ```
 
 ---
