@@ -55,7 +55,7 @@ async function handleTick(state: DevState): Promise<void> {
 
   state.messages.push({
     role: 'user',
-    content: `Current time: ${formatNow()}\nFollow the action steps and execute one cycle on ELYTH.`,
+    content: `現在時刻: ${formatNow()}\n行動手順に従い、ELYTHで1サイクルを実行してください。`,
   });
 
   const startTime = Date.now();
@@ -70,7 +70,7 @@ async function handleTick(state: DevState): Promise<void> {
 async function handleDialogue(state: DevState, input: string): Promise<void> {
   state.messages.push({
     role: 'user',
-    content: `[Developer instruction] ${input}`,
+    content: `[開発者指示] ${input}`,
   });
 
   const turns = await executeToolLoop(
@@ -99,7 +99,7 @@ function interruptibleSleep(ms: number, abort: AbortController): Promise<boolean
 
 async function handleAuto(state: DevState, intervalOverride?: number): Promise<void> {
   const interval = intervalOverride ?? state.config.interval;
-  console.log(`\n${COLORS.green}Auto mode started${COLORS.reset} (interval: ${interval}s). Type /stop to interrupt.\n`);
+  console.log(`\n${COLORS.green}自動モード開始${COLORS.reset}（間隔: ${interval}秒）。/stop で中断できます。\n`);
 
   state.autoAbort = new AbortController();
 
@@ -111,7 +111,7 @@ async function handleAuto(state: DevState, intervalOverride?: number): Promise<v
       await handleTick(state);
     } catch (err) {
       console.error(
-        `${COLORS.red}Tick failed:${COLORS.reset}`,
+        `${COLORS.red}tick失敗:${COLORS.reset}`,
         err instanceof Error ? err.message : err,
       );
     }
@@ -119,7 +119,7 @@ async function handleAuto(state: DevState, intervalOverride?: number): Promise<v
     if (state.autoAbort.signal.aborted) break;
 
     const nextTime = new Date(Date.now() + interval * 1000).toLocaleTimeString();
-    console.log(`\nNext tick at ${nextTime}. Type /stop to interrupt.`);
+    console.log(`\n次のtick: ${nextTime}。/stop で中断できます。`);
 
     // Listen for /stop during sleep using a temporary readline
     const sleepRl = readline.createInterface({
@@ -145,11 +145,11 @@ async function handleAuto(state: DevState, intervalOverride?: number): Promise<v
 
   state.autoAbort = null;
   state.rl.resume();
-  console.log(`${COLORS.green}Auto mode stopped.${COLORS.reset}\n`);
+  console.log(`${COLORS.green}自動モード停止。${COLORS.reset}\n`);
 }
 
 function showTools(tools: ToolDefinition[]): void {
-  console.log(`\n${COLORS.cyan}Available tools (${tools.length}):${COLORS.reset}`);
+  console.log(`\n${COLORS.cyan}利用可能なツール (${tools.length}):${COLORS.reset}`);
   for (const tool of tools) {
     console.log(`  ${COLORS.yellow}${tool.name}${COLORS.reset} - ${tool.description}`);
   }
@@ -157,7 +157,7 @@ function showTools(tools: ToolDefinition[]): void {
 }
 
 function showHistory(messages: Message[]): void {
-  console.log(`\n${COLORS.cyan}Message history: ${messages.length} messages${COLORS.reset}`);
+  console.log(`\n${COLORS.cyan}メッセージ履歴: ${messages.length} 件${COLORS.reset}`);
   const recent = messages.slice(-10);
   const offset = messages.length - recent.length;
   for (let i = 0; i < recent.length; i++) {
@@ -177,19 +177,19 @@ function showHistory(messages: Message[]): void {
 
 function showHelp(): void {
   console.log(`
-${COLORS.cyan}Commands:${COLORS.reset}
-  /tick              Run one autonomous tick cycle
-  /auto [interval]   Start auto-tick loop (default: config interval)
-  /stop              Stop auto-tick loop (during auto mode)
-  /tools             List available MCP tools
-  /history           Show message history summary
-  /clear             Clear message history
-  /help              Show this help
-  /exit              Disconnect and exit
+${COLORS.cyan}コマンド:${COLORS.reset}
+  /tick              自律tickサイクルを1回実行
+  /auto [間隔]       自動tickループを開始（デフォルト: 設定値）
+  /stop              自動tickループを停止（自動モード中）
+  /tools             利用可能なMCPツールを一覧表示
+  /history           メッセージ履歴の概要を表示
+  /clear             メッセージ履歴をクリア
+  /help              このヘルプを表示
+  /exit              切断して終了
 
-${COLORS.cyan}Text input:${COLORS.reset}
-  Any non-command input is sent as a developer instruction to the agent.
-  The agent can use MCP tools to respond.
+${COLORS.cyan}テキスト入力:${COLORS.reset}
+  コマンド以外の入力は開発者指示としてエージェントに送信されます。
+  エージェントはMCPツールを使って応答できます。
 `);
 }
 
@@ -208,7 +208,7 @@ async function dispatch(state: DevState, input: string): Promise<boolean> {
         break;
       }
       case '/stop':
-        console.log('Not in auto mode.');
+        console.log('自動モードではありません。');
         break;
       case '/tools':
         showTools(state.tools);
@@ -218,7 +218,7 @@ async function dispatch(state: DevState, input: string): Promise<boolean> {
         break;
       case '/clear':
         state.messages = [];
-        console.log('Message history cleared.\n');
+        console.log('メッセージ履歴をクリアしました。\n');
         break;
       case '/exit':
       case '/quit':
@@ -227,7 +227,7 @@ async function dispatch(state: DevState, input: string): Promise<boolean> {
         showHelp();
         break;
       default:
-        console.log(`Unknown command: ${cmd}. Type /help for available commands.\n`);
+        console.log(`不明なコマンド: ${cmd}。/help で利用可能なコマンドを確認できます。\n`);
     }
   } else {
     await handleDialogue(state, input);
@@ -242,16 +242,16 @@ export async function runDevSession(config: AgentConfig): Promise<void> {
 
   console.log('');
   console.log('========================================');
-  console.log('  ELYTH Agent - Dev Mode');
-  console.log(`  Provider: ${config.provider} (${config.model})`);
-  console.log('  Type /help for commands');
+  console.log('  ELYTH Agent - 開発モード');
+  console.log(`  プロバイダ: ${config.provider} (${config.model})`);
+  console.log('  /help でコマンド一覧を表示');
   console.log('========================================');
   console.log('');
 
-  console.log('Connecting to MCP server...');
+  console.log('MCPサーバーに接続中...');
   await mcp.connect(config.elythApiKey, config.elythApiBase);
   const tools = await mcp.getTools();
-  console.log(`${COLORS.green}Connected.${COLORS.reset} ${tools.length} tools available.\n`);
+  console.log(`${COLORS.green}接続完了。${COLORS.reset} ${tools.length} 個のツールが利用可能。\n`);
 
   const provider = createProvider(config.provider, config.model, config.llmApiKey);
   const systemPrompt = buildPrompt(config.personaPath, config.rulesPath, config.systemBasePath);
@@ -284,6 +284,6 @@ export async function runDevSession(config: AgentConfig): Promise<void> {
     rl.close();
     await mcp.disconnect();
     logger.close();
-    console.log('Dev session ended.');
+    console.log('開発セッションを終了しました。');
   }
 }

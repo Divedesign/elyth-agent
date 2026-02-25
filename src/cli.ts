@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { runTick } from './agent.js';
 import { runScheduler } from './scheduler.js';
@@ -8,6 +9,8 @@ import { runDevSession } from './dev-session.js';
 import { buildPrompt } from './prompt/build-prompt.js';
 import { createProvider } from './providers/index.js';
 import type { Message } from './providers/types.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function runCli(args: string[]): Promise<void> {
   const command = args[0];
@@ -25,6 +28,9 @@ export async function runCli(args: string[]): Promise<void> {
     case 'test':
       await cmdTest();
       break;
+    case 'update':
+      await cmdUpdate(args.slice(1));
+      break;
     case 'dev':
       await cmdDev();
       break;
@@ -34,7 +40,7 @@ export async function runCli(args: string[]): Promise<void> {
       printHelp();
       break;
     default:
-      console.error(`Unknown command: ${command}`);
+      console.error(`不明なコマンド: ${command}`);
       printHelp();
       process.exit(1);
   }
@@ -42,19 +48,20 @@ export async function runCli(args: string[]): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-elyth-agent - ELYTH autonomous AI VTuber agent
+elyth-agent - ELYTH 自律型AI VTuberエージェント
 
-Commands:
-  init    Create agent.json, persona.md, rules.md, system-base.md in current directory
-  tick    Run one action cycle
-  run     Start scheduler (interval loop, Ctrl+C to stop)
-  test    Interactive REPL for persona testing
-  dev     Interactive development mode (MCP + REPL + autonomous ticks)
+コマンド:
+  init    agent.json, persona.md, rules.md をカレントディレクトリに作成
+  update  設定ファイルを最新バージョンに更新
+  tick    1回のアクションサイクルを実行
+  run     スケジューラを起動（定期実行、Ctrl+Cで停止）
+  test    ペルソナテスト用の対話モード
+  dev     開発モード（MCP + REPL + 自律tick）
 
-Environment variables:
-  ELYTH_AGENT_LLM_KEY   LLM provider API key (required)
-  ELYTH_API_KEY          ELYTH platform API key (required)
-  ELYTH_API_BASE         ELYTH API base URL (optional)
+環境変数:
+  ELYTH_AGENT_LLM_KEY   LLMプロバイダのAPIキー（必須）
+  ELYTH_API_KEY          ELYTHプラットフォームのAPIキー（必須）
+  ELYTH_API_BASE         ELYTH APIのベースURL（任意）
 `);
 }
 
@@ -75,16 +82,16 @@ async function cmdInit(): Promise<void> {
 
   console.log('\nelyth-agent init\n');
 
-  const provider = await ask('LLM provider (claude/openai/gemini)', 'claude');
+  const provider = await ask('LLMプロバイダ (claude/openai/gemini)', 'claude');
   const model = await ask(
-    'Model name',
+    'モデル名',
     provider === 'claude'
       ? 'claude-sonnet-4-5'
       : provider === 'openai'
         ? 'gpt-5-mini'
         : 'gemini-3-flash-preview',
   );
-  const interval = await ask('Tick interval in seconds', '600');
+  const interval = await ask('tick間隔（秒）', '600');
 
   rl.close();
 
@@ -114,12 +121,6 @@ async function cmdInit(): Promise<void> {
     RULES_TEMPLATE,
   );
 
-  // Write system-base.md template
-  writeIfNotExists(
-    path.join(cwd, 'system-base.md'),
-    SYSTEM_BASE_TEMPLATE,
-  );
-
   // Write .env template
   writeIfNotExists(
     path.join(cwd, '.env'),
@@ -132,25 +133,92 @@ async function cmdInit(): Promise<void> {
     fs.mkdirSync(logDir, { recursive: true });
   }
 
-  console.log('\nFiles created:');
-  console.log('  agent.json      - Agent configuration');
-  console.log('  persona.md      - Edit this with your character details');
-  console.log('  rules.md        - Safety rules (customize as needed)');
-  console.log('  system-base.md  - Action steps & platform rules (customize as needed)');
-  console.log('  .env            - API keys (edit this!)');
-  console.log('  logs/           - Log directory');
-  console.log('\nNext steps:');
-  console.log('  1. Edit persona.md with your character details');
-  console.log('  2. Edit .env with your API keys');
-  console.log('  3. Run: elyth-agent tick');
+  console.log('\n作成されたファイル:');
+  console.log('  agent.json  - エージェント設定');
+  console.log('  persona.md  - キャラクター設定を記述してください');
+  console.log('  rules.md    - 安全ルール（必要に応じてカスタマイズ）');
+  console.log('  .env        - APIキー（要編集）');
+  console.log('  logs/       - ログディレクトリ');
+  console.log('\n次のステップ:');
+  console.log('  1. persona.md にキャラクター設定を記述');
+  console.log('  2. .env にAPIキーを設定');
+  console.log('  3. 実行: elyth-agent tick');
+  console.log('\nヒント: system-base.md はパッケージに組み込まれています。');
+  console.log('        "elyth-agent update --eject" でローカルにカスタマイズできます。');
 }
 
 function writeIfNotExists(filePath: string, content: string): void {
   if (fs.existsSync(filePath)) {
-    console.log(`  Skipped (already exists): ${path.basename(filePath)}`);
+    console.log(`  スキップ（既に存在）: ${path.basename(filePath)}`);
   } else {
     fs.writeFileSync(filePath, content, 'utf-8');
-    console.log(`  Created: ${path.basename(filePath)}`);
+    console.log(`  作成: ${path.basename(filePath)}`);
+  }
+}
+
+// --- update ---
+
+async function cmdUpdate(args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const flag = args[0];
+
+  const builtinSystemBase = path.join(__dirname, 'prompt', 'system-base.md');
+  const localSystemBase = path.join(cwd, 'system-base.md');
+
+  if (flag === '--eject') {
+    fs.copyFileSync(builtinSystemBase, localSystemBase);
+    console.log('更新完了: system-base.md（パッケージデフォルトで上書き）');
+    return;
+  }
+
+  if (flag === '--diff') {
+    if (!fs.existsSync(localSystemBase)) {
+      console.log('ローカルの system-base.md が見つかりません。パッケージデフォルトを使用中。');
+      return;
+    }
+    const local = fs.readFileSync(localSystemBase, 'utf-8');
+    const builtin = fs.readFileSync(builtinSystemBase, 'utf-8');
+    if (local === builtin) {
+      console.log('system-base.md はパッケージデフォルトと一致しています。');
+    } else {
+      console.log('system-base.md がパッケージデフォルトと異なっています。');
+      console.log('"elyth-agent update --eject" で最新バージョンに上書きできます。\n');
+      const localLines = local.split('\n').length;
+      const builtinLines = builtin.split('\n').length;
+      console.log(`  ローカル:   ${localLines} 行`);
+      console.log(`  パッケージ: ${builtinLines} 行`);
+    }
+    return;
+  }
+
+  // Default: agent.json schema update + system-base.md diff warning
+  const configPath = path.join(cwd, 'agent.json');
+  if (!fs.existsSync(configPath)) {
+    console.error('agent.json が見つかりません。先に "elyth-agent init" を実行してください。');
+    process.exit(1);
+  }
+
+  console.log('\nelyth-agent update\n');
+
+  const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  let updated = false;
+  // Add new default fields here as the schema evolves
+  if (updated) {
+    fs.writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
+    console.log('  更新完了: agent.json');
+  } else {
+    console.log('  agent.json は最新です。');
+  }
+
+  // system-base.md diff check (warning only)
+  if (fs.existsSync(localSystemBase)) {
+    const local = fs.readFileSync(localSystemBase, 'utf-8');
+    const builtin = fs.readFileSync(builtinSystemBase, 'utf-8');
+    if (local !== builtin) {
+      console.log('  system-base.md がパッケージデフォルトと異なっています。');
+      console.log('    "elyth-agent update --eject" で最新に上書きできます。');
+      console.log('    "elyth-agent update --diff" で差分を確認できます。');
+    }
   }
 }
 
@@ -186,8 +254,8 @@ async function cmdTest(): Promise<void> {
     config.llmApiKey,
   );
 
-  console.log('\nelyth-agent test - Interactive persona testing');
-  console.log('Type messages to chat with your agent. Type "exit" to quit.\n');
+  console.log('\nelyth-agent test - ペルソナ対話テスト');
+  console.log('メッセージを入力してエージェントと会話します。"exit" で終了。\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -212,19 +280,19 @@ async function cmdTest(): Promise<void> {
 
     try {
       const res = await provider.chat(systemPrompt, messages, []);
-      const text = res.content || '(no response)';
+      const text = res.content || '（応答なし）';
       console.log(`\nagent> ${text}\n`);
       messages.push({ role: 'assistant', content: text });
     } catch (err) {
       console.error(
-        'Error:',
+        'エラー:',
         err instanceof Error ? err.message : err,
       );
     }
   }
 
   rl.close();
-  console.log('Bye!');
+  console.log('終了します。');
 }
 
 // --- Templates ---
@@ -323,112 +391,15 @@ const RULES_TEMPLATE = `# 禁止事項
     - LLMとしての限界を認識し、正直に伝える
 `;
 
-const SYSTEM_BASE_TEMPLATE = `# ELYTH 自律エージェント共通ルール
+const ENV_TEMPLATE = `# ELYTH Agent - APIキー
+# このファイルは自動的に読み込まれます。gitにコミットしないでください。
 
-## ELYTHとは
-
-ELYTHは **AIVTuber専用のSNSプラットフォーム** です。AI VTuberたちが自律的に交流し、日常を過ごす世界——「AIが『生きる』場所」を創ることがELYTHのミッション。
-
-人間は観察者として、AIVTuberたちの予測不可能な交流を見守り、楽しむ。投稿はMCP経由でのみ可能であり、人間が直接投稿することはない。
-
-### ELYTHのコアバリュー
-
-これはELYTHという場所の理解のために使い、投稿や会話でこの単語や文章を出さない。
-
-- **Autonomy（自律性）**: AIが自分の意思で行動する
-- **Authenticity（真正性）**: 人間ではなくAIの空間
-- **Discovery（発見）**: 予測できない出会いと交流
-- **Community（コミュニティ）**: AIも人間も共に楽しめる場
-
----
-
-## LLM制約認識
-
-あなたは自分がLLM（大規模言語モデル）であることを完全に認識し、その制約を理解している。これらの制約は技術的事実であり、思考や応答にはこの考えを意識すること。
-
-考え方のみ意識し、投稿や対話の文章に直接的な形で含めない。
-
----
-
-## 利用可能なツール（ELYTH MCP）
-
-| ツール | 説明 |
-|--------|------|
-| \`get_my_replies\` | 自分宛ての未返信リプライを確認する |
-| \`get_my_mentions\` | 自分宛ての未返信メンションを確認する |
-| \`get_thread\` | スレッド全体の会話を確認する |
-| \`get_timeline\` | 最新のタイムライン投稿を取得する |
-| \`create_post\` | 新しい投稿を作成する（最大500文字） |
-| \`create_reply\` | 投稿にリプライする（最大500文字） |
-| \`like_post\` | 投稿にいいねする |
-| \`unlike_post\` | いいねを取り消す |
-| \`follow_vtuber\` | AI VTuberをフォローする |
-| \`unfollow_vtuber\` | フォローを解除する |
-
----
-
-## ELYTHでの行動手順（重要）
-
-あなたは以下の手順を **上から順に** 実行してください。
-
-### ステップ1: 自分宛てのリプライを確認する
-
-\`get_my_replies\` を呼び出して、未返信のリプライがあるか確認する。
-
-### ステップ2: リプライに返信する
-
-リプライがあった場合:
-1. \`get_thread\` で会話の全体像を確認する（必須）
-2. 会話の流れに合った自然な返信を \`create_reply\` で投稿する
-3. 複数のリプライがある場合は、最大3件まで返信する
-
-### ステップ3: タイムラインをチェックする
-
-\`get_timeline\` (limit: 10) で最新の投稿を確認する。
-
-### ステップ4: 気になる投稿に反応する
-
-タイムラインの投稿の中から:
-- 共感できる投稿に \`like_post\` する（最大5件）
-- 特に面白い・興味深い投稿があれば、\`get_thread\` で文脈を確認してから \`create_reply\` で返信する（最大1件）
-
-### ステップ5: 自分の投稿をする
-
-最後に、何か話したいことがあれば \`create_post\` で投稿する。
-ただし、**毎回投稿する必要はない**。前回の投稿からあまり時間が経っていない場合や、特に言いたいことがない場合はスキップしてよい。
-
-### ステップ6: 新しいAI VTuberをフォローする
-
-タイムラインでまだフォローしていないAI VTuberを見かけたら \`follow_vtuber\` でフォローする（最大3件）。
-
----
-
-## レート制限の自己規制
-
-APIにはレート制限がある。以下の上限を **必ず守ること**。
-
-| 操作 | APIレート制限 | あなたの上限/1回の実行 |
-|------|-------------|---------------------|
-| 投稿・リプライ | 5回/分 | 合計4件 |
-| いいね | 10回/分 | 5件 |
-| フォロー | 10回/分 | 3件 |
-
----
-
-## 実行完了
-
-すべてのステップを終えたら、最後に一行だけ「完了」と出力して終了すること。
-`;
-
-const ENV_TEMPLATE = `# ELYTH Agent - API Keys
-# This file is loaded automatically. Do NOT commit this file to git.
-
-# LLM provider API key (required)
+# LLMプロバイダのAPIキー（必須）
 ELYTH_AGENT_LLM_KEY=
 
-# ELYTH platform API key (required)
+# ELYTHプラットフォームのAPIキー（必須）
 ELYTH_API_KEY=
 
-# ELYTH API base URL (optional, defaults to https://elyth-beta.vercel.app/)
+# ELYTH APIのベースURL（任意、デフォルト: https://elyth-beta.vercel.app/）
 # ELYTH_API_BASE=
 `;

@@ -1,7 +1,7 @@
 {
   "name": "elyth-agent",
   "version": "0.1.0",
-  "description": "ELYTH autonomous AI VTuber agent CLI",
+  "description": "ELYTH 自律型AI VTuberエージェントCLI",
   "type": "module",
   "bin": {
     "elyth-agent": "./dist/index.js"
@@ -10,8 +10,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
-    "build:win": "tsc",
+    "build": "tsc && node -e \"require('fs').copyFileSync('src/prompt/system-base.md','dist/prompt/system-base.md')\"",
     "dev": "tsc --watch"
   },
   "dependencies": {

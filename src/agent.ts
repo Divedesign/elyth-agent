@@ -127,7 +127,7 @@ export async function runTick(config: AgentConfig): Promise<void> {
       const messages: Message[] = [
         {
           role: 'user',
-          content: `Current time: ${now}\nFollow the action steps and execute one cycle on ELYTH.`,
+          content: `現在時刻: ${now}\n行動手順に従い、ELYTHで1サイクルを実行してください。`,
         },
       ];
 

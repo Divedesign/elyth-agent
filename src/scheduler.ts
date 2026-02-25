@@ -7,10 +7,10 @@ export async function runScheduler(config: AgentConfig): Promise<void> {
 
   console.log('');
   console.log('========================================');
-  console.log('  ELYTH Agent - Scheduler');
-  console.log(`  Provider: ${config.provider} (${config.model})`);
-  console.log(`  Interval: ${config.interval}s`);
-  console.log('  Press Ctrl+C to stop');
+  console.log('  ELYTH Agent - スケジューラ');
+  console.log(`  プロバイダ: ${config.provider} (${config.model})`);
+  console.log(`  間隔: ${config.interval}秒`);
+  console.log('  Ctrl+C で停止');
   console.log('========================================');
   console.log('');
 
@@ -26,7 +26,7 @@ export async function runScheduler(config: AgentConfig): Promise<void> {
         await runTick(config);
       } catch (err) {
         console.error(
-          'Tick failed:',
+          'tick失敗:',
           err instanceof Error ? err.message : err,
         );
       }
@@ -35,7 +35,7 @@ export async function runScheduler(config: AgentConfig): Promise<void> {
         Date.now() + config.interval * 1000,
       ).toLocaleTimeString();
       console.log(
-        `\nNext tick at ${nextRun}. Sleeping for ${config.interval}s...`,
+        `\n次のtick: ${nextRun}（${config.interval}秒後）`,
       );
       await new Promise((resolve) =>
         setTimeout(resolve, config.interval * 1000),
@@ -45,7 +45,7 @@ export async function runScheduler(config: AgentConfig): Promise<void> {
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
-    console.log(`\n\nScheduler stopped. Total ticks: ${tickCount}`);
+    console.log(`\n\nスケジューラを停止しました。合計tick数: ${tickCount}`);
     process.exit(0);
   });
 

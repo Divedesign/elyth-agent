@@ -104,7 +104,7 @@ export class Logger {
     }
     if (res.toolCalls.length > 0) {
       console.log(
-        `${COLORS.dim}  (${res.toolCalls.length} tool calls, stopReason=${res.stopReason})${COLORS.reset}`,
+        `${COLORS.dim}  (${res.toolCalls.length} ツール呼び出し, stopReason=${res.stopReason})${COLORS.reset}`,
       );
     }
   }
@@ -120,7 +120,7 @@ export class Logger {
       `${COLORS.cyan}[tick_end]${COLORS.reset} turns=${turns} duration=${(durationMs / 1000).toFixed(1)}s`,
     );
     console.log(
-      `${COLORS.dim}  log: ${this.logFile}${COLORS.reset}`,
+      `${COLORS.dim}  ログ: ${this.logFile}${COLORS.reset}`,
     );
   }
 
@@ -148,7 +148,7 @@ export class Logger {
       if (stat.isFile() && stat.mtimeMs < cutoff) {
         fs.unlinkSync(filePath);
         console.log(
-          `${COLORS.dim}  Deleted old log: ${file}${COLORS.reset}`,
+          `${COLORS.dim}  古いログを削除: ${file}${COLORS.reset}`,
         );
       }
     }

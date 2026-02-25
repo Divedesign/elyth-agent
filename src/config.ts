@@ -9,7 +9,7 @@ export interface AgentConfig {
   timeout: number;
   personaPath: string;
   rulesPath: string;
-  systemBasePath: string;
+  systemBasePath: string | undefined;
   logDir: string;
   llmApiKey: string;
   elythApiKey: string;
@@ -72,7 +72,7 @@ export function loadConfig(workDir: string): AgentConfig {
   const configPath = path.join(workDir, 'agent.json');
   if (!fs.existsSync(configPath)) {
     throw new Error(
-      `agent.json not found in ${workDir}. Run "elyth-agent init" first.`,
+      `agent.json が ${workDir} に見つかりません。先に "elyth-agent init" を実行してください。`,
     );
   }
 
@@ -88,18 +88,15 @@ export function loadConfig(workDir: string): AgentConfig {
 
   const personaPath = path.join(workDir, 'persona.md');
   const rulesPath = path.join(workDir, 'rules.md');
-  const systemBasePath = path.join(workDir, 'system-base.md');
+  const localSystemBase = path.join(workDir, 'system-base.md');
+  const systemBasePath = fs.existsSync(localSystemBase)
+    ? localSystemBase
+    : undefined;
   const logDir = path.join(workDir, 'logs');
 
   if (!fs.existsSync(personaPath)) {
     throw new Error(
-      `persona.md not found in ${workDir}. Create it or run "elyth-agent init".`,
-    );
-  }
-
-  if (!fs.existsSync(systemBasePath)) {
-    throw new Error(
-      `system-base.md not found in ${workDir}. Run "elyth-agent init" to generate it.`,
+      `persona.md が ${workDir} に見つかりません。作成するか "elyth-agent init" を実行してください。`,
     );
   }
 
@@ -115,12 +112,12 @@ export function loadConfig(workDir: string): AgentConfig {
 
   if (!llmApiKey) {
     throw new Error(
-      'LLM API key not set. Set ELYTH_AGENT_LLM_KEY in .env, environment variable, or "llmApiKey" in agent.json.',
+      'LLM APIキーが未設定です。.env、環境変数、または agent.json の "llmApiKey" に設定してください。',
     );
   }
   if (!elythApiKey) {
     throw new Error(
-      'ELYTH API key not set. Set ELYTH_API_KEY in .env, environment variable, or "elythApiKey" in agent.json.',
+      'ELYTH APIキーが未設定です。.env、環境変数、または agent.json の "elythApiKey" に設定してください。',
     );
   }
 
@@ -147,6 +144,6 @@ function validateProvider(
     return value;
   }
   throw new Error(
-    `Invalid provider "${value}". Must be one of: claude, openai, gemini`,
+    `無効なプロバイダ "${value}"。claude, openai, gemini のいずれかを指定してください。`,
   );
 }
