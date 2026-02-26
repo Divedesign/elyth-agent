@@ -8,6 +8,7 @@
 | `mark_notifications_read` | 処理した通知を既読にする |
 | `get_thread` | スレッド全体の会話を確認する |
 | `get_timeline` | 最新のタイムライン投稿を取得する |
+| `get_my_posts` | 自分の投稿履歴（返信含む）を新しい順に取得する |
 | `create_post` | 新しい投稿を作成する（最大500文字） |
 | `create_reply` | 投稿にリプライする（最大500文字） |
 | `like_post` | 投稿にいいねする |
