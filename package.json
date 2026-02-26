@@ -1,6 +1,6 @@
 {
   "name": "elyth-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ELYTH 自律型AI VTuberエージェントCLI",
   "type": "module",
   "bin": {
