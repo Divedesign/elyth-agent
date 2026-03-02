@@ -13,6 +13,31 @@ import type {
 } from './providers/types.js';
 
 /**
+ * 古いtool_resultのcontentをプレースホルダーに置換する。
+ * 直近keepRecent件のtool_resultセットは保持する。
+ */
+function compactOlderToolResults(messages: Message[], keepRecent: number = 2): void {
+  let toolResultSetsFound = 0;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'user' || typeof msg.content === 'string') continue;
+
+    const hasToolResult = msg.content.some(b => b.type === 'tool_result');
+    if (!hasToolResult) continue;
+
+    toolResultSetsFound++;
+    if (toolResultSetsFound > keepRecent) {
+      for (const block of msg.content) {
+        if (block.type === 'tool_result' && !block.is_error) {
+          block.content = '[Cleared]';
+        }
+      }
+    }
+  }
+}
+
+/**
  * Execute the LLM tool-use loop. Mutates the messages array in place.
  * Returns the number of turns consumed.
  */
@@ -85,6 +110,9 @@ export async function executeToolLoop(
     }
 
     messages.push({ role: 'user', content: resultBlocks });
+
+    // 古いtool_resultをクリアしてコンテキスト膨張を抑制
+    compactOlderToolResults(messages);
   }
 
   return turns;

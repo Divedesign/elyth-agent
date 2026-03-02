@@ -31,7 +31,7 @@ const DEFAULTS = {
   provider: 'claude' as const,
   model: 'claude-sonnet-4-5',
   interval: 600,
-  maxTurns: 25,
+  maxTurns: 15,
   timeout: 300,
   elythApiBase: 'https://elyth-beta.vercel.app/',
 };
