@@ -12,12 +12,25 @@ import type {
   LLMProvider,
 } from './providers/types.js';
 
+/** 一時的な参照用ツール — 使用後にクリアしてよい */
+const CLEARABLE_TOOLS = new Set([
+  'get_thread',
+  'like_post',
+  'unlike_post',
+  'follow_vtuber',
+  'unfollow_vtuber',
+  'mark_notifications_read',
+  'create_post',
+  'create_reply',
+]);
+
 /**
- * 古いtool_resultのcontentをプレースホルダーに置換する。
- * 直近keepRecent件のtool_resultセットは保持する。
+ * 一時的なツール結果をクリアする。
+ * CLEARABLE_TOOLSに該当し、かつ直近keepRecent件より古い結果を[Cleared]に置換。
+ * get_my_posts, get_notifications, get_timelineの結果は全ステップで参照するため保持。
  */
-function compactOlderToolResults(messages: Message[], keepRecent: number = 2): void {
-  let toolResultSetsFound = 0;
+function compactOlderToolResults(messages: Message[], keepRecent: number = 1): void {
+  let clearableSetsFound = 0;
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -26,8 +39,16 @@ function compactOlderToolResults(messages: Message[], keepRecent: number = 2): v
     const hasToolResult = msg.content.some(b => b.type === 'tool_result');
     if (!hasToolResult) continue;
 
-    toolResultSetsFound++;
-    if (toolResultSetsFound > keepRecent) {
+    const toolResults = msg.content.filter(b => b.type === 'tool_result') as ToolResultBlock[];
+    const allClearable = toolResults.every(tr => {
+      const toolName = findToolName(messages, tr.tool_use_id);
+      return toolName !== null && CLEARABLE_TOOLS.has(toolName);
+    });
+
+    if (!allClearable) continue;
+
+    clearableSetsFound++;
+    if (clearableSetsFound > keepRecent) {
       for (const block of msg.content) {
         if (block.type === 'tool_result' && !block.is_error) {
           block.content = '[Cleared]';
@@ -35,6 +56,20 @@ function compactOlderToolResults(messages: Message[], keepRecent: number = 2): v
       }
     }
   }
+}
+
+/** tool_use_idに対応するツール名をメッセージ履歴から逆引きする */
+function findToolName(messages: Message[], toolUseId: string): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'assistant' || typeof msg.content === 'string') continue;
+    for (const block of msg.content) {
+      if (block.type === 'tool_use' && block.id === toolUseId) {
+        return block.name;
+      }
+    }
+  }
+  return null;
 }
 
 /**

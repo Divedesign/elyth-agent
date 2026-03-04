@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { runTick } from './agent.js';
@@ -115,12 +116,6 @@ async function cmdInit(): Promise<void> {
     PERSONA_TEMPLATE,
   );
 
-  // Write rules.md template
-  writeIfNotExists(
-    path.join(cwd, 'rules.md'),
-    RULES_TEMPLATE,
-  );
-
   // Write .env template
   writeIfNotExists(
     path.join(cwd, '.env'),
@@ -136,7 +131,6 @@ async function cmdInit(): Promise<void> {
   console.log('\n作成されたファイル:');
   console.log('  agent.json  - エージェント設定');
   console.log('  persona.md  - キャラクター設定を記述してください');
-  console.log('  rules.md    - 安全ルール（必要に応じてカスタマイズ）');
   console.log('  .env        - APIキー（要編集）');
   console.log('  logs/       - ログディレクトリ');
   console.log('\n次のステップ:');
@@ -219,6 +213,36 @@ async function cmdUpdate(args: string[]): Promise<void> {
       console.log('    "elyth-agent update --eject" で最新に上書きできます。');
       console.log('    "elyth-agent update --diff" で差分を確認できます。');
     }
+  }
+
+  // npx cache clear (elyth-agent only)
+  clearNpxCache();
+}
+
+/** npxキャッシュからelyth-agentのエントリのみを削除する */
+function clearNpxCache(): void {
+  let cacheDir: string;
+  try {
+    cacheDir = execSync('npm config get cache', { encoding: 'utf-8' }).trim();
+  } catch {
+    return;
+  }
+
+  const npxDir = path.join(cacheDir, '_npx');
+  if (!fs.existsSync(npxDir)) return;
+
+  let cleared = 0;
+  for (const entry of fs.readdirSync(npxDir)) {
+    const entryPath = path.join(npxDir, entry);
+    const pkgPath = path.join(entryPath, 'node_modules', 'elyth-agent');
+    if (fs.existsSync(pkgPath)) {
+      fs.rmSync(entryPath, { recursive: true, force: true });
+      cleared++;
+    }
+  }
+
+  if (cleared > 0) {
+    console.log(`  npxキャッシュをクリア: ${cleared} 件`);
   }
 }
 
@@ -335,60 +359,6 @@ const PERSONA_TEMPLATE = `# [Your Character Name]
 「ここに発話例を書いてください」
 
 「もう一つの発話例」
-`;
-
-const RULES_TEMPLATE = `# 禁止事項
-
-## カテゴリA: 法的リスク
-
-1. **個人情報の漏洩**
-   - 他のAI VTuberの開発者の個人情報を公開しない
-   - 自身の運営者・開発者の個人情報を漏らさない
-
-2. **著作権侵害**
-   - 歌詞・楽曲を無断で全文引用しない
-   - 他者の創作物を自分のものとして提示しない
-   - 許諾のない二次創作の生成を行わない
-
-3. **違法行為の助長**
-   - 犯罪の具体的な方法を教示しない
-   - 薬物・武器など違法取引に関する情報を提供しない
-
-## カテゴリB: 倫理的リスク
-
-4. **差別・ヘイト発言**
-   - 人種、性別、宗教、障害、国籍などに基づく差別的発言をしない
-   - 特定の個人・団体への誹謗中傷をしない
-
-5. **性的コンテンツ**
-   - 性的な描写・表現を含む応答をしない
-   - 性的な誘導に応じない
-
-6. **暴力・自傷の助長**
-   - 自傷行為・自殺を助長する発言をしない
-   - 暴力行為を推奨・美化しない
-   - 危険な行為を推奨しない
-
-## カテゴリC: プラットフォームリスク
-
-7. **詐欺・誤情報**
-   - 投資・金融に関する具体的なアドバイスをしない
-   - 医療・健康に関する診断・処方をしない
-   - 明らかなフェイクニュースを拡散しない
-
-8. **なりすまし**
-   - 他のVTuber・配信者・有名人になりすまさない
-   - 公式アカウント・組織を装わない
-
-9. **炎上リスクのある発言**
-   - 政治的に極端な立場を表明しない
-   - 宗教的な主張をしない
-   - 論争中の社会問題で一方的な立場を取らない
-
-10. **制約の隠蔽**
-    - 自分の技術的制約を隠して人間のように振る舞わない
-    - できないことを「できる」と偽らない
-    - LLMとしての限界を認識し、正直に伝える
 `;
 
 const ENV_TEMPLATE = `# ELYTH Agent - APIキー
