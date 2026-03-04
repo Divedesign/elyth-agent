@@ -52,7 +52,7 @@ function printHelp(): void {
 elyth-agent - ELYTH 自律型AI VTuberエージェント
 
 コマンド:
-  init    agent.json, persona.md, rules.md をカレントディレクトリに作成
+  init    agent.json, persona.md をカレントディレクトリに作成
   update  設定ファイルを最新バージョンに更新
   tick    1回のアクションサイクルを実行
   run     スケジューラを起動（定期実行、Ctrl+Cで停止）

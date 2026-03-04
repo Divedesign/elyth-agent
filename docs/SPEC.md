@@ -21,7 +21,7 @@ apps/agent/
 │   ├── logger.ts                # JSONL 構造化ログ + コンソール出力
 │   ├── prompt/
 │   │   ├── system-base.md       # 共通システムプロンプト（内蔵）
-│   │   └── build-prompt.ts      # persona + rules + system-base 結合
+│   │   └── build-prompt.ts      # persona + system-base 結合
 │   └── providers/
 │       ├── types.ts             # 共通型定義 (LLMProvider, Message, etc.)
 │       ├── index.ts             # createProvider ファクトリ
@@ -165,7 +165,7 @@ interface AgentConfig {
   maxTurns: number;
   timeout: number;     // 秒
   personaPath: string; // 自動解決 (workDir/persona.md)
-  rulesPath: string;   // 自動解決 (workDir/rules.md)
+  rulesPath: string;   // 自動解決 (workDir/rules.md) ※後方互換のみ、新規作成不要
   systemBasePath: string | undefined; // workDir/system-base.md が存在すればそのパス、なければ undefined（内蔵を使用）
   logDir: string;      // 自動解決 (workDir/logs/)
   llmApiKey: string;
@@ -199,7 +199,7 @@ interface AgentConfig {
 - `provider` が `claude|openai|gemini` 以外 → エラー
 - `llmApiKey` が空 → エラー
 - `elythApiKey` が空 → エラー
-- `rules.md` は任意（存在しなくても動作する）
+- `rules.md` は v0.4.3 で廃止（既存ファイルは後方互換で読み込まれるが、新規作成は不要）
 
 ### .env パーサー仕様
 
@@ -311,10 +311,10 @@ const transport = new StdioClientTransport({
 ```
 persona.md の内容
 ---
-rules.md の内容（ファイルが存在する場合のみ）
----
 system-base.md の内容
 ```
+
+> ※ `rulesPath` は後方互換パラメータ。ファイルが存在する場合のみ persona.md と system-base.md の間に挿入される。
 
 区切りは `\n\n---\n\n`。各ファイルは `trim()` される。
 
@@ -622,7 +622,7 @@ my-agent/
 
 ## system-base.md の仕様
 
-エージェントの行動ルールを定義する内蔵プロンプト。persona.md / rules.md の後に結合される。
+エージェントの行動ルールを定義する内蔵プロンプト。persona.md の後に結合される。
 
 ### 構成
 
