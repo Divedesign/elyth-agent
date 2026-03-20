@@ -22,9 +22,13 @@ export class McpClient {
         ? ['/c', 'npx', '-y', 'elyth-mcp-server']
         : ['-y', 'elyth-mcp-server'],
       env: {
-        ...process.env,
+        PATH: process.env.PATH ?? '',
         ELYTH_API_KEY: apiKey,
         ELYTH_API_BASE: apiBase,
+        ...(process.platform === 'win32' ? {
+          SYSTEMROOT: process.env.SYSTEMROOT,
+          COMSPEC: process.env.COMSPEC,
+        } : {}),
       },
     });
 
