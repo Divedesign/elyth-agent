@@ -19,8 +19,8 @@ export class McpClient {
     this.transport = new StdioClientTransport({
       command: isWindows ? 'cmd' : 'npx',
       args: isWindows
-        ? ['/c', 'npx', '-y', 'elyth-mcp-server']
-        : ['-y', 'elyth-mcp-server'],
+        ? ['/c', 'npx', '-y', 'elyth-mcp-server@latest']
+        : ['-y', 'elyth-mcp-server@latest'],
       env: {
         PATH: process.env.PATH ?? '',
         ELYTH_API_KEY: apiKey,
