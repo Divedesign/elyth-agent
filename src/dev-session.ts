@@ -164,8 +164,9 @@ function showHistory(messages: Message[]): void {
     const msg = recent[i];
     let preview: string;
     if (typeof msg.content === 'string') {
-      preview = msg.content.slice(0, 100);
-      if (msg.content.length > 100) preview += '...';
+      const chars = Array.from(msg.content);
+      preview = chars.slice(0, 100).join('');
+      if (chars.length > 100) preview += '...';
     } else {
       const types = msg.content.map((b) => b.type);
       preview = `[${types.join(', ')}]`;

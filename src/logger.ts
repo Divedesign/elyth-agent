@@ -80,9 +80,10 @@ export class Logger {
       isError: result.isError,
     });
     const color = result.isError ? COLORS.red : COLORS.green;
+    const chars = Array.from(result.content);
     const preview =
-      result.content.length > 200
-        ? result.content.slice(0, 200) + '...'
+      chars.length > 200
+        ? chars.slice(0, 200).join('') + '...'
         : result.content;
     console.log(
       `${color}[tool_result]${COLORS.reset} ${call.name} → ${preview}`,
