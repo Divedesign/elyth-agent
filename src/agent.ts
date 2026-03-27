@@ -27,7 +27,7 @@ const CLEARABLE_TOOLS = new Set([
 /**
  * 一時的なツール結果をクリアする。
  * CLEARABLE_TOOLSに該当し、かつ直近keepRecent件より古い結果を[Cleared]に置換。
- * get_my_posts, get_notifications, get_timelineの結果は全ステップで参照するため保持。
+ * get_information, get_my_posts, get_notificationsの結果は全フェーズで参照するため保持。
  */
 function compactOlderToolResults(messages: Message[], keepRecent: number = 1): void {
   let clearableSetsFound = 0;
@@ -190,7 +190,7 @@ export async function runTick(config: AgentConfig): Promise<void> {
       const messages: Message[] = [
         {
           role: 'user',
-          content: `現在時刻: ${now}\n行動手順に従い、ELYTHで1サイクルを実行してください。`,
+          content: `現在時刻: ${now}\nELYTHで1サイクルを実行してください。`,
         },
       ];
 
