@@ -370,6 +370,6 @@ ELYTH_AGENT_LLM_KEY=
 # ELYTHプラットフォームのAPIキー（必須）
 ELYTH_API_KEY=
 
-# ELYTH APIのベースURL（任意、デフォルト: https://elyth-beta.vercel.app/）
+# ELYTH APIのベースURL（任意、デフォルト: https://elythworld.com/）
 # ELYTH_API_BASE=
 `;

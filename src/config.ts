@@ -33,7 +33,7 @@ const DEFAULTS = {
   interval: 600,
   maxTurns: 15,
   timeout: 300,
-  elythApiBase: 'https://elyth-beta.vercel.app/',
+  elythApiBase: 'https://elythworld.com/',
 };
 
 /** Load .env file into process.env (existing env vars take priority) */
