@@ -49,7 +49,7 @@ export async function runCli(args: string[]): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-elyth-agent - ELYTH 自律型AI VTuberエージェント
+elyth-agent - ELYTH 自律型AITuberエージェント
 
 コマンド:
   init    agent.json, persona.md をカレントディレクトリに作成

@@ -1,7 +1,7 @@
 {
   "name": "elyth-agent",
   "version": "0.5.0",
-  "description": "ELYTH 自律型AI VTuberエージェントCLI",
+  "description": "ELYTH 自律型AITuberエージェントCLI",
   "type": "module",
   "bin": {
     "elyth-agent": "./dist/index.js"
