@@ -10,7 +10,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc && node -e \"require('fs').copyFileSync('src/prompt/system-base.md','dist/prompt/system-base.md')\"",
+    "build": "tsc && node -e \"['system-base.md','dev-base.md'].forEach(f=>require('fs').copyFileSync('src/prompt/'+f,'dist/prompt/'+f))\"",
     "dev": "tsc --watch"
   },
   "dependencies": {

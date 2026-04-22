@@ -1,7 +1,7 @@
 import readline from 'node:readline';
 import { McpClient } from './mcp-client.js';
 import { Logger } from './logger.js';
-import { buildPrompt } from './prompt/build-prompt.js';
+import { buildDevPrompt } from './prompt/build-prompt.js';
 import { createProvider } from './providers/index.js';
 import { executeToolLoop } from './agent.js';
 import type { AgentConfig } from './config.js';
@@ -254,8 +254,8 @@ export async function runDevSession(config: AgentConfig): Promise<void> {
   const tools = await mcp.getTools();
   console.log(`${COLORS.green}接続完了。${COLORS.reset} ${tools.length} 個のツールが利用可能。\n`);
 
-  const provider = createProvider(config.provider, config.model, config.llmApiKey);
-  const systemPrompt = buildPrompt(config.personaPath, config.rulesPath, config.systemBasePath);
+  const provider = createProvider(config.provider, config.model, config.llmApiKey, config.baseURL);
+  const systemPrompt = buildDevPrompt(config.personaPath, config.rulesPath);
 
   const rl = readline.createInterface({
     input: process.stdin,

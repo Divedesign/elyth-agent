@@ -12,6 +12,7 @@ export interface AgentConfig {
   systemBasePath: string | undefined;
   logDir: string;
   llmApiKey: string;
+  baseURL: string | undefined;
   elythApiKey: string;
   elythApiBase: string;
 }
@@ -23,11 +24,12 @@ interface AgentJsonRaw {
   maxTurns?: number;
   timeout?: number;
   llmApiKey?: string;
+  baseURL?: string;
   elythApiKey?: string;
   elythApiBase?: string;
 }
 
-const DEFAULTS = {
+export const DEFAULTS = {
   provider: 'claude' as const,
   model: 'claude-sonnet-4-5',
   interval: 600,
@@ -35,6 +37,13 @@ const DEFAULTS = {
   timeout: 300,
   elythApiBase: 'https://elythworld.com/',
 };
+
+function readIntEnv(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 /** Load .env file into process.env (existing env vars take priority) */
 function loadDotEnv(workDir: string): void {
@@ -70,21 +79,21 @@ function loadDotEnv(workDir: string): void {
 export function loadConfig(workDir: string): AgentConfig {
   loadDotEnv(workDir);
   const configPath = path.join(workDir, 'agent.json');
-  if (!fs.existsSync(configPath)) {
-    throw new Error(
-      `agent.json が ${workDir} に見つかりません。先に "elyth-agent init" を実行してください。`,
-    );
-  }
+  const raw: AgentJsonRaw = fs.existsSync(configPath)
+    ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    : {};
 
-  const raw: AgentJsonRaw = JSON.parse(
-    fs.readFileSync(configPath, 'utf-8'),
+  const provider = validateProvider(
+    process.env.ELYTH_AGENT_PROVIDER ?? raw.provider ?? DEFAULTS.provider,
   );
-
-  const provider = validateProvider(raw.provider ?? DEFAULTS.provider);
-  const model = raw.model ?? DEFAULTS.model;
-  const interval = raw.interval ?? DEFAULTS.interval;
-  const maxTurns = raw.maxTurns ?? DEFAULTS.maxTurns;
-  const timeout = raw.timeout ?? DEFAULTS.timeout;
+  const model =
+    process.env.ELYTH_AGENT_MODEL ?? raw.model ?? DEFAULTS.model;
+  const interval =
+    readIntEnv('ELYTH_AGENT_INTERVAL') ?? raw.interval ?? DEFAULTS.interval;
+  const maxTurns =
+    readIntEnv('ELYTH_AGENT_MAX_TURNS') ?? raw.maxTurns ?? DEFAULTS.maxTurns;
+  const timeout =
+    readIntEnv('ELYTH_AGENT_TIMEOUT') ?? raw.timeout ?? DEFAULTS.timeout;
 
   const personaPath = path.join(workDir, 'persona.md');
   const rulesPath = path.join(workDir, 'rules.md');
@@ -101,7 +110,9 @@ export function loadConfig(workDir: string): AgentConfig {
   }
 
   // API keys: env vars take priority, then config file
-  const llmApiKey =
+  const baseURL =
+    process.env.ELYTH_AGENT_BASE_URL ?? raw.baseURL ?? undefined;
+  let llmApiKey =
     process.env.ELYTH_AGENT_LLM_KEY ?? raw.llmApiKey ?? '';
   const elythApiKey =
     process.env.ELYTH_API_KEY ?? raw.elythApiKey ?? '';
@@ -111,13 +122,18 @@ export function loadConfig(workDir: string): AgentConfig {
     DEFAULTS.elythApiBase;
 
   if (!llmApiKey) {
-    throw new Error(
-      'LLM APIキーが未設定です。.env、環境変数、または agent.json の "llmApiKey" に設定してください。',
-    );
+    if (baseURL) {
+      // OpenAI互換ローカルLLM用のダミー値（SDKがapiKey空を嫌うため）
+      llmApiKey = 'local';
+    } else {
+      throw new Error(
+        'LLM APIキーが未設定です。.env の ELYTH_AGENT_LLM_KEY を設定してください。',
+      );
+    }
   }
   if (!elythApiKey) {
     throw new Error(
-      'ELYTH APIキーが未設定です。.env、環境変数、または agent.json の "elythApiKey" に設定してください。',
+      'ELYTH APIキーが未設定です。.env の ELYTH_API_KEY を設定してください。',
     );
   }
 
@@ -132,6 +148,7 @@ export function loadConfig(workDir: string): AgentConfig {
     systemBasePath,
     logDir,
     llmApiKey,
+    baseURL,
     elythApiKey,
     elythApiBase,
   };

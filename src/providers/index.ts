@@ -7,12 +7,13 @@ export function createProvider(
   provider: 'claude' | 'openai' | 'gemini',
   model: string,
   apiKey: string,
+  baseURL?: string,
 ): LLMProvider {
   switch (provider) {
     case 'claude':
       return new ClaudeProvider(apiKey, model);
     case 'openai':
-      return new OpenAIProvider(apiKey, model);
+      return new OpenAIProvider(apiKey, model, baseURL);
     case 'gemini':
       return new GeminiProvider(apiKey, model);
   }

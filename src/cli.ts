@@ -3,7 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from './config.js';
+import { DEFAULTS, loadConfig } from './config.js';
 import { runTick } from './agent.js';
 import { runScheduler } from './scheduler.js';
 import { runDevSession } from './dev-session.js';
@@ -52,15 +52,21 @@ function printHelp(): void {
 elyth-agent - ELYTH 自律型AITuberエージェント
 
 コマンド:
-  init    agent.json, persona.md をカレントディレクトリに作成
+  init    .env, persona.md をカレントディレクトリに作成
   update  設定ファイルを最新バージョンに更新
   tick    1回のアクションサイクルを実行
   run     スケジューラを起動（定期実行、Ctrl+Cで停止）
   test    ペルソナテスト用の対話モード
   dev     開発モード（MCP + REPL + 自律tick）
 
-環境変数:
-  ELYTH_AGENT_LLM_KEY   LLMプロバイダのAPIキー（必須）
+環境変数（.env で設定、優先順: process.env > agent.json > 既定値）:
+  ELYTH_AGENT_PROVIDER   LLMプロバイダ（claude/openai/gemini）
+  ELYTH_AGENT_MODEL      モデル名
+  ELYTH_AGENT_INTERVAL   tick間隔（秒）
+  ELYTH_AGENT_MAX_TURNS  1回の実行での最大ターン数
+  ELYTH_AGENT_TIMEOUT    タイムアウト（秒）
+  ELYTH_AGENT_LLM_KEY    LLMプロバイダのAPIキー（ローカルLLM時は空白可）
+  ELYTH_AGENT_BASE_URL   OpenAI互換エンドポイントのベースURL（任意）
   ELYTH_API_KEY          ELYTHプラットフォームのAPIキー（必須）
   ELYTH_API_BASE         ELYTH APIのベースURL（任意）
 `);
@@ -92,23 +98,9 @@ async function cmdInit(): Promise<void> {
         ? 'gpt-5-mini'
         : 'gemini-3-flash-preview',
   );
-  const interval = await ask('tick間隔（秒）', '600');
+  const interval = await ask('tick間隔（秒）', String(DEFAULTS.interval));
 
   rl.close();
-
-  // Write agent.json
-  const agentJson = {
-    provider,
-    model,
-    interval: parseInt(interval, 10),
-    maxTurns: 25,
-    timeout: 300,
-  };
-
-  writeIfNotExists(
-    path.join(cwd, 'agent.json'),
-    JSON.stringify(agentJson, null, 2) + '\n',
-  );
 
   // Write persona.md template
   writeIfNotExists(
@@ -116,10 +108,14 @@ async function cmdInit(): Promise<void> {
     PERSONA_TEMPLATE,
   );
 
-  // Write .env template
+  // Write .env with all init-configurable items pre-populated
   writeIfNotExists(
     path.join(cwd, '.env'),
-    ENV_TEMPLATE,
+    buildEnvTemplate({
+      provider,
+      model,
+      interval: Number.parseInt(interval, 10) || DEFAULTS.interval,
+    }),
   );
 
   // Create logs dir
@@ -129,9 +125,8 @@ async function cmdInit(): Promise<void> {
   }
 
   console.log('\n作成されたファイル:');
-  console.log('  agent.json  - エージェント設定');
   console.log('  persona.md  - キャラクター設定を記述してください');
-  console.log('  .env        - APIキー（要編集）');
+  console.log('  .env        - 動作設定・APIキー（要編集）');
   console.log('  logs/       - ログディレクトリ');
   console.log('\n次のステップ:');
   console.log('  1. persona.md にキャラクター設定を記述');
@@ -185,23 +180,22 @@ async function cmdUpdate(args: string[]): Promise<void> {
     return;
   }
 
-  // Default: agent.json schema update + system-base.md diff warning
-  const configPath = path.join(cwd, 'agent.json');
-  if (!fs.existsSync(configPath)) {
-    console.error('agent.json が見つかりません。先に "elyth-agent init" を実行してください。');
-    process.exit(1);
-  }
-
+  // Default: agent.json schema update (if exists) + system-base.md diff warning
   console.log('\nelyth-agent update\n');
 
-  const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  let updated = false;
-  // Add new default fields here as the schema evolves
-  if (updated) {
-    fs.writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
-    console.log('  更新完了: agent.json');
+  const configPath = path.join(cwd, 'agent.json');
+  if (fs.existsSync(configPath)) {
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    let updated = false;
+    // Add new default fields here as the schema evolves
+    if (updated) {
+      fs.writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
+      console.log('  更新完了: agent.json');
+    } else {
+      console.log('  agent.json は最新です。');
+    }
   } else {
-    console.log('  agent.json は最新です。');
+    console.log('  .env ベースの構成です（agent.json なし）。');
   }
 
   // system-base.md diff check (warning only)
@@ -276,6 +270,7 @@ async function cmdTest(): Promise<void> {
     config.provider,
     config.model,
     config.llmApiKey,
+    config.baseURL,
   );
 
   console.log('\nelyth-agent test - ペルソナ対話テスト');
@@ -361,15 +356,59 @@ const PERSONA_TEMPLATE = `# [Your Character Name]
 「もう一つの発話例」
 `;
 
-const ENV_TEMPLATE = `# ELYTH Agent - APIキー
+function buildEnvTemplate(opts: {
+  provider: string;
+  model: string;
+  interval: number;
+}): string {
+  return `# ELYTH Agent - 設定ファイル
 # このファイルは自動的に読み込まれます。gitにコミットしないでください。
+# 優先順位: このファイル(.env) > agent.json > 内蔵デフォルト
+
+# ==============================
+# 動作設定
+# ==============================
+
+# LLMプロバイダ（claude / openai / gemini）
+ELYTH_AGENT_PROVIDER=${opts.provider}
+
+# モデル名
+ELYTH_AGENT_MODEL=${opts.model}
+
+# tick間隔（秒）
+ELYTH_AGENT_INTERVAL=${opts.interval}
+
+# 1回の実行でAIがやり取りできる最大回数
+ELYTH_AGENT_MAX_TURNS=${DEFAULTS.maxTurns}
+
+# タイムアウト（秒）
+ELYTH_AGENT_TIMEOUT=${DEFAULTS.timeout}
+
+# ==============================
+# LLMプロバイダ認証
+# ==============================
 
 # LLMプロバイダのAPIキー（必須）
+# ローカルLLM（OpenAI互換サーバー）利用時は空白のままでOK
 ELYTH_AGENT_LLM_KEY=
+
+# OpenAI互換エンドポイントのベースURL（任意）
+# ローカルLLMを利用する場合のみ指定してください
+# 例:
+#   Ollama    → http://localhost:11434/v1
+#   LM Studio → http://localhost:1234/v1
+#   vLLM      → http://localhost:8000/v1
+# 注意: ELYTH_AGENT_PROVIDER は "openai" に設定し、tool use対応モデルを選んでください
+# ELYTH_AGENT_BASE_URL=
+
+# ==============================
+# ELYTHプラットフォーム設定
+# ==============================
 
 # ELYTHプラットフォームのAPIキー（必須）
 ELYTH_API_KEY=
 
-# ELYTH APIのベースURL（任意、デフォルト: https://elythworld.com/）
+# ELYTH APIのベースURL（任意、デフォルト: ${DEFAULTS.elythApiBase}）
 # ELYTH_API_BASE=
 `;
+}

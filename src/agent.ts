@@ -170,6 +170,7 @@ export async function runTick(config: AgentConfig): Promise<void> {
         config.provider,
         config.model,
         config.llmApiKey,
+        config.baseURL,
       );
       const systemPrompt = buildPrompt(
         config.personaPath,
